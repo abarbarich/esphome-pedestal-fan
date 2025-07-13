@@ -1,0 +1,193 @@
+esphome:
+  name: pedestalfan
+  friendly_name: pedestal fan version 0.0.1
+
+esp32:
+  board: freenove_esp32_s3_wroom
+  framework:
+      type: esp-idf
+  variant: ESP32S3
+    
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: #redacted
+
+ota:
+  - platform: esphome
+    password: #redacted
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Pedestal-Fan-esphome"
+    password: #redacted
+
+status_led:
+  pin: 2
+
+captive_portal:
+
+binary_sensor:
+  #Led Lights on fan that provide status information
+  - platform: gpio
+    pin: 4
+    name: "High"
+    id: fan_high
+    internal: true
+
+  - platform: gpio
+    pin: 5
+    name: "Medium"
+    id: fan_med
+    internal: true
+
+  - platform: gpio
+    pin: 6
+    name: "Low"
+    id: fan_low
+    internal: true
+
+  - platform: gpio
+    pin: 7
+    name: "Oscillate"
+    id: fan_oscillating
+    internal: false
+
+#Detects weather Fan is on/off based on LEDs being on/off
+  - platform: template
+    name: "Fan Is On"
+    id: fan_is_on
+    lambda: |-
+      return id(fan_high).state || id(fan_med).state || id(fan_low).state;
+    device_class: power
+    filters: 
+      - delayed_off: 
+          seconds: 1
+
+text_sensor:
+  - platform: template
+    name: "Fan Speed"
+    id: fan_speed_text
+    lambda: |-
+      if (id(fan_high).state) return {"High"};
+      if (id(fan_med).state) return {"Medium"};
+      if (id(fan_low).state) return {"Low"};
+      return {"Off"};
+    update_interval: 1s
+
+sensor:
+  - platform: template
+    id: fan_speed
+    lambda: |-
+      if (id(fan_high).state) return 3;
+      if (id(fan_med).state) return 2;
+      if (id(fan_low).state) return 1;
+      return 0;
+    update_interval: 1s
+    internal: True
+
+switch:
+  - platform: gpio
+    pin: GPIO10
+    id: power_btn
+    name: "Fan Power Button"
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - delay: 250ms
+      - switch.turn_off: power_btn 
+
+  - platform: gpio
+    pin: GPIO11
+    id: speed_up_btn
+    name: "Fan Speed + Button"
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - delay: 250ms
+      - switch.turn_off: speed_up_btn
+
+  - platform: gpio
+    pin: GPIO12
+    id: speed_down_btn
+    name: "Fan Speed - Button"
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - delay: 250ms
+      - switch.turn_off: speed_down_btn
+
+  - platform: gpio
+    pin: GPIO13
+    id: oscillate_btn
+    name: "Fan Oscillate Button"
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - delay: 250ms
+      - switch.turn_off: oscillate_btn
+            
+#output:
+#  - platform: template
+#    type: binary
+#    id: oscillate_on_off
+#    write_action: 
+#      then:
+      #activate momentary switch to change mode
+#        - switch.turn_on: oscillate_btn
+
+#  - platform: template
+#    type: float
+#    id: fan_on_off
+#    write_action: 
+#      then:
+#        - switch.turn_on: power_btn
+        
+output:
+  - platform: template
+    id: oscillate_on_off
+    type: binary
+    write_action:
+#      - if:
+#          condition:
+#            lambda: 'return != id(fan_oscillating).state;'
+      then:
+        - switch.turn_on: oscillate_btn
+
+  - platform: template
+    type: binary
+    id: fan_on_off
+    write_action: 
+      then:
+        - switch.turn_on: power_btn
+#fan:
+#  - platform: template
+#    name: "Pedestal Fan"
+#    id: pedestal_fan
+#    on_turn_on:
+#      then:
+#        - switch.turn_on: power_btn
+#    on_turn_off:
+#      then:
+#        - switch.turn_on: power_btn
+#    on_oscillating_set: 
+#        - switch.turn_on: oscillate_btn
+fan:
+  - platform: binary
+    name: "Binary Pedestal Fan"
+    output: fan_on_off
+    id: io_pedastal_fan
+    on_turn_on:
+      then:
+        - switch.turn_on: power_btn
+    on_turn_off:
+      then:
+        - switch.turn_on: power_btn
+    on_oscillating_set: 
+        - switch.turn_on: oscillate_btn
+
+web_server:
+  port: 80
